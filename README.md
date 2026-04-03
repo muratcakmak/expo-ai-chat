@@ -11,11 +11,11 @@ A native keyboard-aware AI composer for React Native with smooth system-level ke
 <table>
 <tr>
 <td width="50%" align="center">
-<video src="https://github.com/muratcakmak/expo-ai-chat/raw/main/expo-ai-composer/assets/demo-1.mp4" width="280" controls></video>
+<img src="./expo-ai-composer/assets/demo-1.gif" width="280" alt="First message animation and streaming" />
 <br/><b>First message + streaming</b>
 </td>
 <td width="50%" align="center">
-<video src="https://github.com/muratcakmak/expo-ai-chat/raw/main/expo-ai-composer/assets/demo-2.mp4" width="280" controls></video>
+<img src="./expo-ai-composer/assets/demo-2.gif" width="280" alt="Pin-to-top and keyboard handling" />
 <br/><b>Pin-to-top + keyboard</b>
 </td>
 </tr>
