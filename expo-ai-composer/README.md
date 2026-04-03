@@ -2,24 +2,83 @@
 
 A native keyboard-aware AI composer component for React Native. Provides smooth, system-level keyboard animations and a ChatGPT-style pin-to-top scroll experience for chat UIs.
 
+<!-- TODO: Add hero demo -->
+<!-- ![Demo](./assets/demo.gif) -->
+
+<p align="center">
+  <i>Demo video/GIF coming soon</i>
+</p>
+
+## Highlights
+
+<table>
+<tr>
+<td width="50%">
+
+### Keyboard Tracking
+Native keyboard animations that match system apps like iMessage. No JS bridge lag.
+
+<!-- TODO: Replace with actual screenshot -->
+<!-- ![Keyboard Animation](./assets/keyboard-tracking.gif) -->
+<p align="center"><code>[ keyboard tracking demo ]</code></p>
+
+</td>
+<td width="50%">
+
+### Pin-to-Top Scroll
+New messages pin to the top of the viewport. Streaming responses grow below with a runway — no jarring scroll jumps.
+
+<!-- TODO: Replace with actual screenshot -->
+<!-- ![Pin to Top](./assets/pin-to-top.gif) -->
+<p align="center"><code>[ pin-to-top demo ]</code></p>
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### First Message Animation
+The first message slides from the composer to the top of the screen with a spring animation, just like ChatGPT and v0.
+
+<!-- TODO: Replace with actual screenshot -->
+<!-- ![First Message](./assets/first-message.gif) -->
+<p align="center"><code>[ first message animation demo ]</code></p>
+
+</td>
+<td width="50%">
+
+### Streaming + Stop
+Built-in send/stop button with haptic feedback. The stop button appears during streaming with a single prop toggle.
+
+<!-- TODO: Replace with actual screenshot -->
+<!-- ![Streaming](./assets/streaming.gif) -->
+<p align="center"><code>[ streaming demo ]</code></p>
+
+</td>
+</tr>
+</table>
+
 ## Features
 
-- **Native keyboard tracking** — pixel-perfect keyboard animations that match system apps like iMessage
-- **Pin-to-top scroll** — new messages pin to the top of the viewport with a runway for streaming responses
-- **Auto-growing text input** — multiline input that grows between configurable min/max heights
-- **Send/Stop button** — built-in send and streaming stop buttons with haptic feedback
-- **Scroll-to-bottom FAB** — appears when scrolled away from bottom, animates with keyboard
-- **Customizable slots** — `headerAccessory`, `leadingAccessory`, `trailingAccessory`, `footerAccessory` for custom UI around the input
-- **Transparent background** — style the composer background from React Native
-- **Expanded editor** — full-screen text editor sheet when input reaches max height (iOS)
-- **Imperative ref methods** — `focus()`, `blur()`, `clear()` via ref
-- **iOS & Android** — full native implementations on both platforms
+- **Native keyboard tracking** — pixel-perfect animations using iOS keyboard notifications and Android `WindowInsetsAnimationCompat`
+- **Pin-to-top scroll** — ChatGPT-style: user message pins to top, response streams below with runway inset
+- **First message animation** — native pin automatically skips the first send so you can implement a slide-from-bottom animation in JS
+- **Auto-growing text input** — multiline input that grows between configurable `minHeight` and `maxHeight`
+- **Send/Stop button** — built-in circular send arrow and square stop icon with haptic feedback
+- **Scroll-to-bottom FAB** — floating button appears when scrolled away, animates in sync with keyboard
+- **Customizable accessory slots** — `headerAccessory`, `leadingAccessory`, `trailingAccessory`, `footerAccessory`
+- **Transparent background** — no hardcoded colors; style from React Native
+- **Expanded editor** — full-screen text editor sheet when maxHeight is reached (iOS)
+- **Imperative ref** — `focus()`, `blur()`, `clear()` via React ref
+- **Cross-platform** — full native implementations on both iOS and Android
 
 ## Installation
 
 ```bash
 npx expo install expo-ai-composer
 ```
+
+Requires Expo SDK 55+ with the [Expo Modules](https://docs.expo.dev/modules/overview/) system.
 
 ## Quick Start
 
@@ -32,6 +91,11 @@ export default function ChatScreen() {
   const [composerHeight, setComposerHeight] = useState(constants.defaultMinHeight);
   const [isStreaming, setIsStreaming] = useState(false);
 
+  const handleSend = (text: string) => {
+    // Add user message, start streaming AI response...
+    setIsStreaming(true);
+  };
+
   return (
     <View style={{ flex: 1 }}>
       <AiComposerWrapper
@@ -40,7 +104,7 @@ export default function ChatScreen() {
         extraBottomInset={composerHeight}
       >
         <ScrollView style={{ flex: 1 }}>
-          {/* Your messages here */}
+          {/* Your chat messages */}
         </ScrollView>
 
         <View style={{
@@ -51,7 +115,7 @@ export default function ChatScreen() {
           <AiComposer
             style={{ flex: 1 }}
             placeholder="Ask anything"
-            onSend={(text) => handleSend(text)}
+            onSend={handleSend}
             onStop={() => setIsStreaming(false)}
             onHeightChange={setComposerHeight}
             isStreaming={isStreaming}
@@ -64,7 +128,7 @@ export default function ChatScreen() {
 }
 ```
 
-## Components
+## API Reference
 
 ### `<AiComposer />`
 
@@ -83,134 +147,230 @@ The native text input with send/stop button.
 | `editable` | `boolean` | `true` | Whether input is editable |
 | `autoFocus` | `boolean` | `false` | Focus input on mount |
 | `isStreaming` | `boolean` | `false` | Show stop button instead of send |
-| `expandedEditorEnabled` | `boolean` | `false` | Enable full-screen editor (iOS) |
-| `onChangeText` | `(text: string) => void` | — | Text change callback |
-| `onSend` | `(text: string) => void` | — | Send button pressed |
-| `onStop` | `() => void` | — | Stop button pressed |
-| `onHeightChange` | `(height: number) => void` | — | Composer height changed |
-| `onKeyboardHeightChange` | `(height: number) => void` | — | Keyboard height changed |
-| `onComposerFocus` | `() => void` | — | Input gained focus |
-| `onComposerBlur` | `() => void` | — | Input lost focus |
-| `style` | `ViewStyle` | — | Container style |
+| `expandedEditorEnabled` | `boolean` | `false` | Enable full-screen editor (iOS only) |
+
+#### Callbacks
+
+| Callback | Type | Description |
+|----------|------|-------------|
+| `onChangeText` | `(text: string) => void` | Text changed |
+| `onSend` | `(text: string) => void` | Send button pressed |
+| `onStop` | `() => void` | Stop button pressed |
+| `onHeightChange` | `(height: number) => void` | Composer height changed (for `extraBottomInset`) |
+| `onKeyboardHeightChange` | `(height: number) => void` | Keyboard height changed |
+| `onComposerFocus` | `() => void` | Input gained focus |
+| `onComposerBlur` | `() => void` | Input lost focus |
 
 #### Accessory Slots
 
-Wrap the native input with custom React Native views:
+Customize the area around the native text input with React Native views:
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `headerAccessory` | `ReactNode` | Above the input row (e.g., formatting toolbar) |
-| `leadingAccessory` | `ReactNode` | Before the input (e.g., attachment button) |
-| `trailingAccessory` | `ReactNode` | After the input, replaces built-in send button |
-| `footerAccessory` | `ReactNode` | Below the input row (e.g., model selector) |
+```tsx
+<AiComposer
+  headerAccessory={<FormattingToolbar />}
+  leadingAccessory={<AttachmentButton />}
+  trailingAccessory={<CustomSendButton />}
+  footerAccessory={<ModelSelector />}
+/>
+```
 
-When `trailingAccessory` is provided, the built-in send button is automatically hidden.
+| Slot | Position | Notes |
+|------|----------|-------|
+| `headerAccessory` | Above the input row | Formatting toolbar, context chips |
+| `leadingAccessory` | Left of the input | Attachment, camera, mic button |
+| `trailingAccessory` | Right of the input | **Replaces** built-in send button |
+| `footerAccessory` | Below the input row | Model selector, file previews |
+
+<!-- TODO: Replace with actual screenshot -->
+<!-- ![Accessory Slots](./assets/slots-diagram.png) -->
+
+```
+┌─────────────────────────────────┐
+│        headerAccessory          │
+├──────┬──────────────────┬───────┤
+│lead- │                  │trail- │
+│ing   │   Native Input   │ing    │
+│      │                  │       │
+├──────┴──────────────────┴───────┤
+│        footerAccessory          │
+└─────────────────────────────────┘
+```
 
 #### Ref Methods
 
 ```tsx
+import { useRef } from "react";
+import { AiComposer, type AiComposerRef } from "expo-ai-composer";
+
 const composerRef = useRef<AiComposerRef>(null);
 
+// Programmatic control
 composerRef.current?.focus();  // Focus the input
 composerRef.current?.blur();   // Blur the input
-composerRef.current?.clear();  // Clear the text
+composerRef.current?.clear();  // Clear all text
+
+<AiComposer ref={composerRef} ... />
 ```
+
+---
 
 ### `<AiComposerWrapper />`
 
-Keyboard-aware container that manages scroll position and composer animation.
+Keyboard-aware container that manages scroll position, keyboard animations, and composer translation. Wrap your `ScrollView` and `AiComposer` together inside this component.
 
 #### Props
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `pinToTopEnabled` | `boolean` | — | Enable ChatGPT-style pin-to-top |
-| `extraBottomInset` | `number` | `0` | Composer height (keyboard height handled natively) |
+| `pinToTopEnabled` | `boolean` | `false` | Enable ChatGPT-style pin-to-top on send |
+| `extraBottomInset` | `number` | `0` | Composer height — pass from `onHeightChange` |
 | `extraTopInset` | `number` | `0` | Extra top inset for transparent headers (Android) |
-| `scrollToTopTrigger` | `number` | `0` | Trigger pin when value changes (use `Date.now()`) |
-| `children` | `ReactNode` | — | ScrollView + composer |
+| `scrollToTopTrigger` | `number` | `0` | Manually trigger pin (use `Date.now()` or counter) |
+| `children` | `ReactNode` | — | Must contain a ScrollView and the composer |
 | `style` | `ViewStyle` | — | Container style |
 
-#### Behavior
+#### Keyboard Behavior
 
-- **Keyboard opens at bottom** — auto-scrolls to keep content visible
-- **Keyboard opens mid-scroll** — opens over content (no scroll)
-- **Pin-to-top** — new messages pin to top, response streams below with runway
-- **First message** — special treatment: native pin is skipped so you can implement your own JS animation (slide from bottom)
-- **Scroll-to-bottom button** — appears when scrolled away, follows keyboard
+| Scenario | Behavior |
+|----------|----------|
+| Keyboard opens while at bottom | Auto-scrolls to keep content visible |
+| Keyboard opens while mid-scroll | Opens over content, no scroll change |
+| User sends message (2nd+) | Message pins to top, response streams below |
+| User sends first message | Native pin skipped — implement JS animation |
+| User scrolls away from bottom | Scroll-to-bottom FAB appears |
+| User drags scroll view down quickly | Keyboard dismisses (interactive) |
+
+---
 
 ### `constants`
+
+Native constants exported from the module:
 
 ```tsx
 import { constants } from "expo-ai-composer";
 
-constants.defaultMinHeight; // 48
-constants.defaultMaxHeight; // 120
-constants.contentGap;       // 0
+constants.defaultMinHeight; // 48  — default minimum composer height
+constants.defaultMaxHeight; // 120 — default maximum composer height
+constants.contentGap;       // 0   — gap between content and composer
 ```
 
-## Layout Pattern
+## Layout Guide
 
-The recommended layout places the `ScrollView` and composer inside the wrapper:
+### Recommended Structure
 
 ```tsx
-<AiComposerWrapper
-  style={{ flex: 1 }}
-  pinToTopEnabled
-  extraBottomInset={composerHeight}
->
-  <ScrollView style={{ flex: 1 }}>
-    {messages.map(renderMessage)}
-  </ScrollView>
+<View style={{ flex: 1 }}>
+  {/* Optional: Header above the wrapper */}
+  <Header />
 
-  <View style={{
-    position: "absolute",
-    bottom: 0, left: 0, right: 0,
-    height: composerHeight,
-  }}>
-    <View style={{ paddingHorizontal: 16, flex: 1 }}>
-      <View style={{ borderRadius: 24, overflow: "hidden", backgroundColor: "#F2F2F7", flex: 1 }}>
-        <AiComposer style={{ flex: 1 }} ... />
+  <AiComposerWrapper
+    style={{ flex: 1 }}
+    pinToTopEnabled
+    extraBottomInset={composerHeight}
+  >
+    {/* ScrollView fills available space */}
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16 }}
+    >
+      {messages.map(renderMessage)}
+    </ScrollView>
+
+    {/* Composer is absolutely positioned — native code handles translation */}
+    <View
+      style={{
+        position: "absolute",
+        bottom: 0, left: 0, right: 0,
+        height: composerHeight,
+      }}
+      pointerEvents="box-none"
+    >
+      <View style={{ paddingHorizontal: 16, flex: 1 }}>
+        <View style={{
+          borderRadius: 24,
+          overflow: "hidden",
+          backgroundColor: "#F2F2F7",
+          flex: 1,
+        }}>
+          <AiComposer
+            style={{ flex: 1 }}
+            placeholder="Ask anything"
+            onSend={handleSend}
+            onStop={handleStop}
+            onHeightChange={setComposerHeight}
+            minHeight={constants.defaultMinHeight}
+            maxHeight={constants.defaultMaxHeight}
+            isStreaming={isStreaming}
+            sendButtonEnabled
+          />
+        </View>
       </View>
     </View>
-  </View>
-</AiComposerWrapper>
+  </AiComposerWrapper>
+</View>
 ```
 
-Key points:
-- No `paddingBottom` on scroll content — native handles spacing via `extraBottomInset`
-- Composer container uses `height: composerHeight` from `onHeightChange`
-- Native code handles safe area and keyboard positioning
-- Use `pointerEvents="box-none"` on composer container if needed
+### Important Layout Rules
+
+1. **No `paddingBottom` on scroll content** — the native wrapper handles bottom spacing via `extraBottomInset`
+2. **Composer uses `height: composerHeight`** — track via `onHeightChange` callback
+3. **Safe area is handled natively** — don't wrap the composer in `SafeAreaView`
+4. **Use `pointerEvents="box-none"`** on the composer container to allow scroll touches to pass through
 
 ## First Message Animation
 
-The native pin-to-top automatically skips the first send. Implement the first message animation in your app using React Native's `Animated` API or Reanimated:
+The native pin-to-top automatically skips the first send. This lets you implement a smooth slide-from-bottom animation in JavaScript:
 
 ```tsx
+import { useRef, useEffect } from "react";
 import { Animated, useWindowDimensions } from "react-native";
 
-function FirstMessageAnimated({ children, isFirst }) {
+function FirstMessageAnimated({
+  children,
+  isFirst,
+  role,
+}: {
+  children: React.ReactNode;
+  isFirst: boolean;
+  role: "user" | "assistant";
+}) {
   const { height } = useWindowDimensions();
-  const translateY = useRef(new Animated.Value(isFirst ? height * 0.6 : 0)).current;
+  const translateY = useRef(
+    new Animated.Value(isFirst && role === "user" ? height * 0.6 : 0)
+  ).current;
   const opacity = useRef(new Animated.Value(isFirst ? 0 : 1)).current;
 
   useEffect(() => {
     if (!isFirst) return;
-    Animated.parallel([
-      Animated.spring(translateY, {
-        toValue: 0,
-        damping: 20,
-        stiffness: 180,
-        useNativeDriver: true,
-      }),
+
+    if (role === "user") {
+      // Slide from bottom to top + fade in
+      Animated.parallel([
+        Animated.spring(translateY, {
+          toValue: 0,
+          damping: 20,
+          stiffness: 180,
+          mass: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Assistant: staggered fade in
       Animated.timing(opacity, {
         toValue: 1,
-        duration: 300,
+        duration: 350,
+        delay: 200,
         useNativeDriver: true,
-      }),
-    ]).start();
+      }).start();
+    }
   }, []);
+
+  if (!isFirst) return <>{children}</>;
 
   return (
     <Animated.View style={{ transform: [{ translateY }], opacity }}>
@@ -220,21 +380,78 @@ function FirstMessageAnimated({ children, isFirst }) {
 }
 ```
 
+## How It Works
+
+### Architecture
+
+```
+┌─────────────────────────────────────────┐
+│           AiComposerWrapper             │
+│  (native: manages keyboard + scroll)    │
+│                                         │
+│  ┌───────────────────────────────────┐  │
+│  │         ScrollView                │  │
+│  │  (content insets managed natively)│  │
+│  │                                   │  │
+│  │  ┌─────────────────────────────┐  │  │
+│  │  │   Chat Messages             │  │  │
+│  │  └─────────────────────────────┘  │  │
+│  │                                   │  │
+│  │  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐  │  │
+│  │  │  Runway (pin-to-top inset)  │  │  │
+│  │  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘  │  │
+│  └───────────────────────────────────┘  │
+│                                         │
+│  ┌───────────────────────────────────┐  │
+│  │      AiComposer                   │  │
+│  │  (native: translated by keyboard) │  │
+│  └───────────────────────────────────┘  │
+│                                         │
+│  [FAB] Scroll-to-bottom button          │
+└─────────────────────────────────────────┘
+```
+
+### Pin-to-Top State Machine (iOS)
+
+```
+idle → armed → animating → pinned(enforce) → idle
+                    ↓
+               deferred (keyboard still closing)
+                    ↓
+               pinned(enforce)
+```
+
+1. **`idle`** — no pin active
+2. **`armed`** — send triggered, waiting for content to grow
+3. **`deferred`** — content grew but keyboard is still animating closed
+4. **`animating`** — scroll animation to pinned offset in progress
+5. **`pinned(enforce)`** — locked at offset, runway consumed as content streams
+
+### Keyboard Animation Sync
+
+| Platform | Mechanism | Sync Target |
+|----------|-----------|-------------|
+| iOS | `keyboardWillShow/Hide` notifications | `UIView.animate` with system curve |
+| Android | `WindowInsetsAnimationCompat.Callback` | Frame-by-frame inset interpolation |
+
+Both platforms translate the composer container and update scroll view padding in the same animation frame as the keyboard, producing a seamless native feel.
+
 ## Platform Notes
 
 ### iOS
-- Keyboard animations use native `UIView.animate` with the system keyboard curve
-- Pin-to-top uses `UIViewPropertyAnimator` with velocity-based duration
-- Expanded editor presents as a `.pageSheet` with grab handle
-- `keyboardDismissMode: .interactive` enabled on scroll view
-- Minimum deployment target: iOS 15.1
+- Uses `UITextView` for multiline input
+- Keyboard curve extracted from notification `userInfo`
+- Pin animation uses `UIViewPropertyAnimator` with velocity-based duration (1800 pts/sec)
+- Expanded editor presents as `.pageSheet` with detent and grab handle
+- `keyboardDismissMode: .interactive` — drag to dismiss
+- Minimum deployment target: **iOS 15.1**
 
 ### Android
-- Keyboard animations use `WindowInsetsAnimationCompat.Callback`
-- Pin-to-top uses `ScrollView.smoothScrollTo()`
-- Send/stop buttons are drawn with Canvas (no image assets)
-- IME animation syncs composer translation with keyboard frame
-- Minimum SDK: 24
+- Uses `EditText` with `TextWatcher`
+- Keyboard tracked via `WindowInsetsAnimationCompat` (API 21+, compat)
+- Send/stop buttons drawn with `Canvas` (no image assets needed)
+- Composer translation applied frame-by-frame during IME animation
+- Minimum SDK: **24**
 
 ## Types
 
@@ -249,6 +466,13 @@ import type {
   HeightEventPayload,
 } from "expo-ai-composer";
 ```
+
+## Requirements
+
+- Expo SDK 55+
+- React Native 0.83+
+- iOS 15.1+
+- Android SDK 24+
 
 ## License
 
