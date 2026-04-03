@@ -2,12 +2,18 @@
 
 A native keyboard-aware AI composer component for React Native. Provides smooth, system-level keyboard animations and a ChatGPT-style pin-to-top scroll experience for chat UIs.
 
-<!-- TODO: Add hero demo -->
-<!-- ![Demo](./assets/demo.gif) -->
-
-<p align="center">
-  <i>Demo video/GIF coming soon</i>
-</p>
+<table>
+<tr>
+<td width="50%" align="center">
+<video src="https://github.com/muratcakmak/expo-ai-chat/raw/main/expo-ai-composer/assets/demo-1.mp4" width="280" controls></video>
+<br/><b>First message animation + streaming</b>
+</td>
+<td width="50%" align="center">
+<video src="https://github.com/muratcakmak/expo-ai-chat/raw/main/expo-ai-composer/assets/demo-2.mp4" width="280" controls></video>
+<br/><b>Pin-to-top + keyboard handling</b>
+</td>
+</tr>
+</table>
 
 ## Highlights
 
@@ -18,19 +24,11 @@ A native keyboard-aware AI composer component for React Native. Provides smooth,
 ### Keyboard Tracking
 Native keyboard animations that match system apps like iMessage. No JS bridge lag.
 
-<!-- TODO: Replace with actual screenshot -->
-<!-- ![Keyboard Animation](./assets/keyboard-tracking.gif) -->
-<p align="center"><code>[ keyboard tracking demo ]</code></p>
-
 </td>
 <td width="50%">
 
 ### Pin-to-Top Scroll
 New messages pin to the top of the viewport. Streaming responses grow below with a runway — no jarring scroll jumps.
-
-<!-- TODO: Replace with actual screenshot -->
-<!-- ![Pin to Top](./assets/pin-to-top.gif) -->
-<p align="center"><code>[ pin-to-top demo ]</code></p>
 
 </td>
 </tr>
@@ -40,19 +38,11 @@ New messages pin to the top of the viewport. Streaming responses grow below with
 ### First Message Animation
 The first message slides from the composer to the top of the screen with a spring animation, just like ChatGPT and v0.
 
-<!-- TODO: Replace with actual screenshot -->
-<!-- ![First Message](./assets/first-message.gif) -->
-<p align="center"><code>[ first message animation demo ]</code></p>
-
 </td>
 <td width="50%">
 
 ### Streaming + Stop
 Built-in send/stop button with haptic feedback. The stop button appears during streaming with a single prop toggle.
-
-<!-- TODO: Replace with actual screenshot -->
-<!-- ![Streaming](./assets/streaming.gif) -->
-<p align="center"><code>[ streaming demo ]</code></p>
 
 </td>
 </tr>

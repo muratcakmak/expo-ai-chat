@@ -8,9 +8,18 @@ Monorepo for **expo-ai-composer** — a native keyboard-aware AI composer compon
 
 A native keyboard-aware AI composer for React Native with smooth system-level keyboard animations and ChatGPT-style pin-to-top scroll.
 
-<!-- TODO: Add hero demo -->
-<!-- ![Demo](./expo-ai-composer/assets/demo.gif) -->
-<p align="center"><i>Demo video/GIF coming soon</i></p>
+<table>
+<tr>
+<td width="50%" align="center">
+<video src="https://github.com/muratcakmak/expo-ai-chat/raw/main/expo-ai-composer/assets/demo-1.mp4" width="280" controls></video>
+<br/><b>First message + streaming</b>
+</td>
+<td width="50%" align="center">
+<video src="https://github.com/muratcakmak/expo-ai-chat/raw/main/expo-ai-composer/assets/demo-2.mp4" width="280" controls></video>
+<br/><b>Pin-to-top + keyboard</b>
+</td>
+</tr>
+</table>
 
 #### Features
 
