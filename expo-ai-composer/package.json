@@ -17,7 +17,8 @@
     "ios/*.podspec",
     "ios/*.swift",
     "expo-module.config.json",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public"
