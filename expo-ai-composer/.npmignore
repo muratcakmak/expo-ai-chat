@@ -1,0 +1,8 @@
+__tests__/
+__mocks__/
+*.test.*
+.github/
+example/
+.eslintrc.js
+tsconfig.json
+CONTRIBUTING.md

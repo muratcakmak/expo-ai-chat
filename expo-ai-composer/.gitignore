@@ -1,0 +1,14 @@
+# Build output
+build/
+
+# Node
+node_modules/
+
+# iOS
+*.xcworkspace
+*.xcodeproj
+Pods/
+
+# Android
+android/.gradle/
+android/build/

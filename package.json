@@ -1,0 +1,9 @@
+{
+  "name": "expo-ai-chat",
+  "private": true,
+  "packageManager": "pnpm@10.26.0",
+  "scripts": {
+    "app:ios": "pnpm --filter app exec expo run:ios",
+    "app:android": "pnpm --filter app exec expo run:android"
+  }
+}

@@ -1,0 +1,27 @@
+node_modules/
+.expo/
+build/
+*.tsbuildinfo
+
+# iOS
+app/ios/Pods/
+app/ios/build/
+*.xcworkspace/xcuserdata/
+
+# Android
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+*.apk
+*.aab
+local.properties
+
+# Xcode
+DerivedData/
+*.xcuserstate
+
+# Original reference (not part of the project)
+react-native-keyboard-composer/
+
+# OS
+.DS_Store

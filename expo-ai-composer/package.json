@@ -1,0 +1,47 @@
+{
+  "name": "expo-ai-composer",
+  "version": "0.1.0",
+  "description": "A native keyboard-aware AI composer component for React Native with smooth keyboard animations",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "default": "./build/index.js"
+    }
+  },
+  "scripts": {
+    "build": "expo-module build",
+    "clean": "expo-module clean",
+    "lint": "expo-module lint",
+    "test": "expo-module test",
+    "prepare": "expo-module prepare",
+    "prepack": "pnpm run build"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "keyboard",
+    "composer",
+    "ai",
+    "chat",
+    "ios",
+    "android"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/react": "~19.2.14",
+    "expo": "^55.0.11",
+    "expo-modules-core": "^55.0.14",
+    "expo-module-scripts": "^55.0.2",
+    "react": "19.2.4",
+    "react-native": "0.84.1",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}
