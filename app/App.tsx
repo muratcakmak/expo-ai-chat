@@ -232,6 +232,21 @@ export default function App() {
     }
   }, [handleSend]);
 
+  // Long-press the stress button: exercise the imperative view functions
+  // (focus -> clear -> blur) — verifies the ref-based native calls.
+  const exerciseRef = useCallback(() => {
+    console.log("[ref-test] focus()");
+    composerRef.current?.focus();
+    setTimeout(() => {
+      console.log("[ref-test] clear()");
+      composerRef.current?.clear();
+    }, 800);
+    setTimeout(() => {
+      console.log("[ref-test] blur()");
+      composerRef.current?.blur();
+    }, 1600);
+  }, []);
+
   useEffect(() => {
     return () => {
       stressTimeoutsRef.current.forEach((id) => clearTimeout(id));
@@ -276,6 +291,9 @@ export default function App() {
           <Text style={styles.stressButtonText}>
             Run stress ×{STRESS_BURST_COUNT}
           </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.refButton} onPress={exerciseRef}>
+          <Text style={styles.stressButtonText}>Ref test</Text>
         </TouchableOpacity>
       </View>
 
@@ -419,5 +437,14 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "600",
+  },
+  refButton: {
+    position: "absolute",
+    left: 16,
+    bottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "#555",
   },
 });
