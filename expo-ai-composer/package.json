@@ -57,12 +57,12 @@
   "license": "MIT",
   "devDependencies": {
     "@types/react": "~19.2.14",
-    "expo": "^55.0.11",
-    "expo-modules-core": "^55.0.14",
-    "expo-module-scripts": "^55.0.2",
-    "react": "19.2.4",
-    "react-native": "0.84.1",
-    "typescript": "^5.9.3"
+    "expo": "^57.0.4",
+    "expo-modules-core": "^57.0.3",
+    "expo-module-scripts": "^56.0.3",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "typescript": "~6.0.3"
   },
   "peerDependencies": {
     "expo": "*",
