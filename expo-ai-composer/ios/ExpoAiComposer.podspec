@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   s.description    = package['description']
   s.license        = package['license']
   s.author         = package['author']
-  s.homepage       = 'https://github.com/oguzhancakmak/expo-ai-composer'
+  s.homepage       = 'https://github.com/muratcakmak/expo-ai-chat'
   s.platforms      = {
     :ios => '15.1'
   }

@@ -15,6 +15,7 @@ export {
 
 // Types
 export type {
+  AiComposerBaseProps,
   AiComposerProps,
   AiComposerRef,
   AiComposerViewProps,

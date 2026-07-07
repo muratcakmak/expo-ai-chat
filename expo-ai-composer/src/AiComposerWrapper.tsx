@@ -1,6 +1,6 @@
+import { requireNativeView } from "expo";
 import type { ReactNode } from "react";
 import type { ViewStyle, StyleProp } from "react-native";
-import { requireNativeViewManager } from "expo-modules-core";
 
 export interface AiComposerWrapperProps {
   children?: ReactNode;
@@ -37,12 +37,8 @@ type NativeAiComposerWrapperProps = {
   children?: ReactNode;
 };
 
-const NativeView = (
-  requireNativeViewManager as unknown as (
-    moduleName: string,
-    viewName?: string
-  ) => React.ComponentType<NativeAiComposerWrapperProps>
-)("ExpoAiComposer", "AiComposerWrapper");
+const NativeView: React.ComponentType<NativeAiComposerWrapperProps> =
+  requireNativeView("ExpoAiComposer", "AiComposerWrapper");
 
 export function AiComposerWrapper({
   children,

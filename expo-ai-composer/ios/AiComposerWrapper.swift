@@ -27,7 +27,9 @@ class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
     private var pinToTopEnabledObservation: NSKeyValueObservation?
 
     @objc dynamic var pinToTopEnabled: Bool = false
-    @objc dynamic var extraBottomInset: CGFloat = 48
+    // Source of truth for the default is the TS layer (AiComposerWrapper.tsx), which
+    // always passes this prop; keep the native default at 0 to match it.
+    @objc dynamic var extraBottomInset: CGFloat = 0
     @objc dynamic var scrollToTopTrigger: Double = 0
 
     required init(appContext: AppContext? = nil) {

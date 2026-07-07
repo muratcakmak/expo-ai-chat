@@ -253,7 +253,11 @@ class KeyboardAwareScrollHandler: NSObject, UIGestureRecognizerDelegate, UIScrol
               let curveValue = userInfo[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt
         else { return }
 
-        let screenHeight = UIScreen.main.bounds.height
+        // Prefer the scroll view's own screen (multi-window/scene correct); fall back to
+        // the window bounds, then UIScreen.main as a last resort for older paths.
+        let screenHeight = scrollView?.window?.windowScene?.screen.bounds.height
+            ?? scrollView?.window?.bounds.height
+            ?? UIScreen.main.bounds.height
         let isVisibleByFrame = keyboardFrame.origin.y < screenHeight
         let newKeyboardHeight = isVisibleByFrame ? keyboardFrame.height : 0
 
@@ -499,7 +503,6 @@ class KeyboardAwareScrollHandler: NSObject, UIGestureRecognizerDelegate, UIScrol
         // First message doesn't need pinning — content is already at top.
         // Pinning with messageStartY=0 creates a negative offset that scrolls above the screen.
         if messageStartY <= 0.5 {
-            print("[PIN] applyPin: SKIPPED (first message)")
             pinState = .idle
             runwayInset = 0
             pinnedOffset = 0

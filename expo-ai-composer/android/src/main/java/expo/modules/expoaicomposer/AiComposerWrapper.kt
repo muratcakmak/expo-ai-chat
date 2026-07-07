@@ -48,7 +48,9 @@ class AiComposerWrapper(context: Context, appContext: AppContext) : ExpoView(con
             }
         }
 
-    private var _extraBottomInset: Float = 64f
+    // Source of truth for the default is the TS layer (AiComposerWrapper.tsx), which
+    // always passes this prop; keep the native default at 0 to match it.
+    private var _extraBottomInset: Float = 0f
     var extraBottomInset: Float
         get() = _extraBottomInset
         set(value) {

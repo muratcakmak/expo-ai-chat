@@ -44,30 +44,25 @@ public class ExpoAiComposerModule: Module {
         view.autoFocus = value
       }
 
-      Prop("focusTrigger") { (view: AiComposerView, value: Double) in
-        if value > 0 {
-          view.focus()
-        }
-      }
-
-      Prop("blurTrigger") { (view: AiComposerView, value: Double) in
-        if value > 0 {
-          view.blur()
-        }
-      }
-
-      Prop("clearTrigger") { (view: AiComposerView, value: Double) in
-        if value > 0 {
-          view.clear()
-        }
-      }
-
       Prop("isStreaming") { (view: AiComposerView, value: Bool) in
         view.isStreaming = value
       }
 
       Prop("expandedEditorEnabled") { (view: AiComposerView, value: Bool) in
         view.expandedEditorEnabled = value
+      }
+
+      // Imperative view functions (dispatched on the main queue by the view DSL).
+      AsyncFunction("focus") { (view: AiComposerView) in
+        view.focus()
+      }
+
+      AsyncFunction("blur") { (view: AiComposerView) in
+        view.blur()
+      }
+
+      AsyncFunction("clear") { (view: AiComposerView) in
+        view.clear()
       }
 
       Events(

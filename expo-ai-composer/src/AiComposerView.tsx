@@ -1,10 +1,5 @@
 import { requireNativeView } from "expo";
-import {
-  forwardRef,
-  useCallback,
-  useImperativeHandle,
-  useState,
-} from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { View, StyleSheet } from "react-native";
 
 import type {
@@ -15,8 +10,21 @@ import type {
   HeightEventPayload,
 } from "./ExpoAiComposer.types";
 
-const NativeView: React.ComponentType<AiComposerViewProps> =
-  requireNativeView("ExpoAiComposer");
+/**
+ * Imperative methods the native view exposes on its ref. `requireNativeView`
+ * assigns these to the component prototype so they are callable via the ref.
+ */
+interface NativeAiComposerViewRef {
+  focus: () => void;
+  blur: () => void;
+  clear: () => void;
+}
+
+const NativeView: React.ComponentType<
+  AiComposerViewProps & {
+    ref?: React.RefObject<NativeAiComposerViewRef | null>;
+  }
+> = requireNativeView("ExpoAiComposer");
 
 const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
   (props, ref) => {
@@ -37,16 +45,17 @@ const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
       ...rest
     } = props;
 
-    // Prop-based triggers for ref methods
-    const [focusTrigger, setFocusTrigger] = useState(0);
-    const [blurTrigger, setBlurTrigger] = useState(0);
-    const [clearTrigger, setClearTrigger] = useState(0);
+    const nativeRef = useRef<NativeAiComposerViewRef | null>(null);
 
-    useImperativeHandle(ref, () => ({
-      focus: () => setFocusTrigger((v) => v + 1),
-      blur: () => setBlurTrigger((v) => v + 1),
-      clear: () => setClearTrigger((v) => v + 1),
-    }), []);
+    useImperativeHandle(
+      ref,
+      () => ({
+        focus: () => nativeRef.current?.focus(),
+        blur: () => nativeRef.current?.blur(),
+        clear: () => nativeRef.current?.clear(),
+      }),
+      []
+    );
 
     // Event handlers that unwrap nativeEvent
     const handleChangeText = useCallback(
@@ -90,13 +99,17 @@ const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
     }, [onComposerBlur]);
 
     const hasAccessories =
-      headerAccessory || leadingAccessory || trailingAccessory || footerAccessory;
+      headerAccessory ||
+      leadingAccessory ||
+      trailingAccessory ||
+      footerAccessory;
 
     // Hide built-in send button when a trailing accessory replaces it
     const effectiveShowSendButton = trailingAccessory ? false : showSendButton;
 
     const nativeView = (
       <NativeView
+        ref={nativeRef}
         style={hasAccessories ? styles.nativeInput : [styles.standalone, style]}
         onChangeText={handleChangeText}
         onSend={handleSend}
@@ -106,9 +119,6 @@ const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
         onComposerFocus={handleComposerFocus}
         onComposerBlur={handleComposerBlur}
         showSendButton={effectiveShowSendButton}
-        focusTrigger={focusTrigger}
-        blurTrigger={blurTrigger}
-        clearTrigger={clearTrigger}
         {...rest}
       />
     );
