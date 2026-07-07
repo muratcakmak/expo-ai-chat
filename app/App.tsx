@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Platform,
   Animated,
+  TouchableOpacity,
   useWindowDimensions,
 } from "react-native";
 import {
@@ -36,6 +37,15 @@ const LONG_RESPONSE =
   "broken state. Finally, confirm that the animation timing is consistent between the " +
   "2nd message and later messages — it should not feel like it speeds up as more messages " +
   "arrive; instead, each pin should feel smooth, predictable, and native.";
+
+// Stress config: fast, high-frequency token emission over a large body so the streaming
+// setState path is genuinely hammered (worst case for re-render cost).
+const STREAM_INTERVAL_MS = 16; // ~1 flush per frame
+const WORDS_PER_TICK = 2;
+const STREAM_BODY = Array(4).fill(LONG_RESPONSE).join(" "); // ~4x longer per message
+const STREAM_WORDS = STREAM_BODY.split(" ");
+const STREAM_TICKS = Math.ceil(STREAM_WORDS.length / WORDS_PER_TICK);
+const STRESS_BURST_COUNT = 6; // messages auto-fired back-to-back by the stress runner
 
 // First message animated wrapper — slides from bottom to top + fades in
 function FirstMessageAnimated({
@@ -92,6 +102,37 @@ function FirstMessageAnimated({
   );
 }
 
+// Memoized so a streaming setState only re-renders the one row whose text changed,
+// not every message in the list.
+const MessageRow = memo(function MessageRow({
+  text,
+  role,
+  isFirst,
+}: {
+  text: string;
+  role: "user" | "assistant";
+  isFirst: boolean;
+}) {
+  if (role === "user") {
+    return (
+      <FirstMessageAnimated isFirst={isFirst} role="user">
+        <View style={styles.userMessageContainer}>
+          <View style={styles.userBubble}>
+            <Text style={styles.userText}>{text}</Text>
+          </View>
+        </View>
+      </FirstMessageAnimated>
+    );
+  }
+  return (
+    <FirstMessageAnimated isFirst={isFirst} role="assistant">
+      <View style={styles.assistantContainer}>
+        <Text style={styles.assistantText}>{text || "..."}</Text>
+      </View>
+    </FirstMessageAnimated>
+  );
+});
+
 export default function App() {
   const composerRef = useRef<AiComposerRef>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -129,7 +170,7 @@ export default function App() {
 
     // Add empty assistant message after a delay
     const assistantId = (Date.now() + 1).toString();
-    const assistantDelay = wasFirst ? 800 : 500; // longer delay for first to let user msg animate
+    const assistantDelay = wasFirst ? 800 : 400; // longer delay for first to let user msg animate
     setTimeout(() => {
       setMessages((prev) => [
         ...prev,
@@ -137,25 +178,28 @@ export default function App() {
       ]);
     }, assistantDelay);
 
-    // Stream the response word by word
-    const words = LONG_RESPONSE.split(" ");
+    // Stream the (large) body in fast multi-word ticks.
     let currentText = "";
-    const streamStartDelay = wasFirst ? 1200 : 600; // longer for first
+    const streamStartDelay = wasFirst ? 1200 : 500; // longer for first
 
-    words.forEach((word, index) => {
+    for (let tick = 0; tick < STREAM_TICKS; tick++) {
       const timeoutId = setTimeout(() => {
-        currentText += (index === 0 ? "" : " ") + word;
+        const slice = STREAM_WORDS.slice(
+          tick * WORDS_PER_TICK,
+          tick * WORDS_PER_TICK + WORDS_PER_TICK
+        ).join(" ");
+        currentText += (tick === 0 ? "" : " ") + slice;
         const streamedText = currentText;
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantId ? { ...msg, text: streamedText } : msg
           )
         );
-      }, streamStartDelay + index * 50);
+      }, streamStartDelay + tick * STREAM_INTERVAL_MS);
       streamChunkTimeoutsRef.current.push(timeoutId);
-    });
+    }
 
-    const totalDuration = streamStartDelay + words.length * 50 + 50;
+    const totalDuration = streamStartDelay + STREAM_TICKS * STREAM_INTERVAL_MS + 50;
     streamingTimeoutRef.current = setTimeout(() => {
       setIsStreaming(false);
       streamingTimeoutRef.current = null;
@@ -173,10 +217,47 @@ export default function App() {
     setIsStreaming(false);
   }, []);
 
-  const baseBottomInset = composerHeight;
-  // Track which messages are part of the first exchange
-  const firstUserMsgId = messages.find((m) => m.role === "user")?.id;
-  const firstAssistantMsgId = messages.find((m) => m.role === "assistant")?.id;
+  // Auto-fire a burst of messages back-to-back, each spaced so its full stream lands
+  // before the next — grows the list under sustained fast streaming (the worst case).
+  const stressTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const runStressTest = useCallback(() => {
+    stressTimeoutsRef.current.forEach((id) => clearTimeout(id));
+    stressTimeoutsRef.current = [];
+    const perMessageMs = STREAM_TICKS * STREAM_INTERVAL_MS + 1400;
+    for (let i = 0; i < STRESS_BURST_COUNT; i++) {
+      const id = setTimeout(() => {
+        handleSend(`Stress message ${i + 1} of ${STRESS_BURST_COUNT}`);
+      }, i * perMessageMs);
+      stressTimeoutsRef.current.push(id);
+    }
+  }, [handleSend]);
+
+  useEffect(() => {
+    return () => {
+      stressTimeoutsRef.current.forEach((id) => clearTimeout(id));
+      streamChunkTimeoutsRef.current.forEach((id) => clearTimeout(id));
+      if (streamingTimeoutRef.current) clearTimeout(streamingTimeoutRef.current);
+    };
+  }, []);
+
+  // Rebuild only when messages change — not on composer-height or isStreaming changes.
+  const messageList = useMemo(() => {
+    const firstUserMsgId = messages.find((m) => m.role === "user")?.id;
+    const firstAssistantMsgId = messages.find((m) => m.role === "assistant")?.id;
+    return messages.map((item) => {
+      const isFirst =
+        (item.id === firstUserMsgId || item.id === firstAssistantMsgId) &&
+        messages.length <= 2;
+      return (
+        <MessageRow
+          key={item.id}
+          text={item.text}
+          role={item.role}
+          isFirst={isFirst}
+        />
+      );
+    });
+  }, [messages]);
 
   return (
     <View style={styles.container}>
@@ -187,12 +268,21 @@ export default function App() {
         <Text style={styles.headerSubtitle}>
           Content-aware keyboard handling
         </Text>
+        <TouchableOpacity
+          style={styles.stressButton}
+          onPress={runStressTest}
+          disabled={isStreaming}
+        >
+          <Text style={styles.stressButtonText}>
+            Run stress ×{STRESS_BURST_COUNT}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <AiComposerWrapper
         style={styles.chatArea}
         pinToTopEnabled={true}
-        extraBottomInset={baseBottomInset}
+        extraBottomInset={composerHeight}
       >
         <ScrollView
           style={styles.scrollView}
@@ -203,39 +293,7 @@ export default function App() {
               Send a message to test the composer
             </Text>
           )}
-          {messages.map((item) => {
-            const isFirstUser = item.id === firstUserMsgId && messages.length <= 2;
-            const isFirstAssistant = item.id === firstAssistantMsgId && messages.length <= 2;
-            const isFirst = isFirstUser || isFirstAssistant;
-
-            if (item.role === "user") {
-              return (
-                <FirstMessageAnimated key={item.id} isFirst={isFirst} role="user">
-                  <View style={styles.userMessageContainer}>
-                    <View style={styles.userBubble}>
-                      <Text style={styles.userText}>{item.text}</Text>
-                    </View>
-                  </View>
-                </FirstMessageAnimated>
-              );
-            }
-            if (!item.text) {
-              return (
-                <FirstMessageAnimated key={item.id} isFirst={isFirst} role="assistant">
-                  <View style={styles.assistantContainer}>
-                    <Text style={styles.assistantText}>...</Text>
-                  </View>
-                </FirstMessageAnimated>
-              );
-            }
-            return (
-              <FirstMessageAnimated key={item.id} isFirst={isFirst} role="assistant">
-                <View style={styles.assistantContainer}>
-                  <Text style={styles.assistantText}>{item.text}</Text>
-                </View>
-              </FirstMessageAnimated>
-            );
-          })}
+          {messageList}
         </ScrollView>
 
         <View
@@ -246,7 +304,7 @@ export default function App() {
             <View style={styles.composerWrapper}>
               <AiComposer
                 ref={composerRef}
-                style={{ flex: 1 }}
+                style={styles.composerFlex}
                 placeholder="Ask anything"
                 onSend={handleSend}
                 onStop={handleStop}
@@ -344,5 +402,22 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#F2F2F7",
     flex: 1,
+  },
+  composerFlex: {
+    flex: 1,
+  },
+  stressButton: {
+    position: "absolute",
+    right: 16,
+    bottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "#111",
+  },
+  stressButtonText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

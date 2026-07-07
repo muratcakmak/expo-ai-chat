@@ -46,7 +46,7 @@ const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
       focus: () => setFocusTrigger((v) => v + 1),
       blur: () => setBlurTrigger((v) => v + 1),
       clear: () => setClearTrigger((v) => v + 1),
-    }));
+    }), []);
 
     // Event handlers that unwrap nativeEvent
     const handleChangeText = useCallback(
