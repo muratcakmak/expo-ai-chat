@@ -268,17 +268,9 @@ class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
 
     // MARK: - React Native Subview Management
 
-    override func insertReactSubview(_ subview: UIView!, at atIndex: Int) {
-        super.insertReactSubview(subview, at: atIndex)
-        if let sv = findFirstScrollView(in: subview) {
-            registerScrollViewIfNeeded(sv)
-        }
-        if let composer = findFirstComposerView(in: subview) {
-            registerComposerView(composer)
-        }
-        setNeedsLayout()
-    }
-
+    // didAddSubview is the architecture-agnostic UIView hook; it fires under both the
+    // legacy and New Architecture, so no RN-specific insertReactSubview override is needed
+    // (that Paper-era method was removed from ExpoView in the New Architecture / RN 0.86).
     override func didAddSubview(_ subview: UIView) {
         super.didAddSubview(subview)
         if let sv = findFirstScrollView(in: subview) {
@@ -287,6 +279,7 @@ class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
         if let composer = findFirstComposerView(in: subview) {
             registerComposerView(composer)
         }
+        setNeedsLayout()
     }
 
     // MARK: - Touch Routing (runway)
