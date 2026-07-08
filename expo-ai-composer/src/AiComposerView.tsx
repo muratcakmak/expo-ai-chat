@@ -13,11 +13,13 @@ import type {
 /**
  * Imperative methods the native view exposes on its ref. `requireNativeView`
  * assigns these to the component prototype so they are callable via the ref.
+ * They are async view functions dispatched natively, so each returns a promise
+ * that can reject with ViewNotFound if the view unmounts mid-call.
  */
 interface NativeAiComposerViewRef {
-  focus: () => void;
-  blur: () => void;
-  clear: () => void;
+  focus: () => Promise<void>;
+  blur: () => Promise<void>;
+  clear: () => Promise<void>;
 }
 
 const NativeView: React.ComponentType<
@@ -50,9 +52,13 @@ const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
     useImperativeHandle(
       ref,
       () => ({
-        focus: () => nativeRef.current?.focus(),
-        blur: () => nativeRef.current?.blur(),
-        clear: () => nativeRef.current?.clear(),
+        // These native view functions are async and can reject with ViewNotFound
+        // during an unmount race; swallow that benign dev-only rejection so it does
+        // not surface as an unhandled promise-rejection warning. Behavior is
+        // otherwise identical (fire-and-forget focus/blur/clear).
+        focus: () => nativeRef.current?.focus()?.catch?.(() => {}),
+        blur: () => nativeRef.current?.blur()?.catch?.(() => {}),
+        clear: () => nativeRef.current?.clear()?.catch?.(() => {}),
       }),
       []
     );

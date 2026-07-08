@@ -10,7 +10,9 @@ public class ExpoAiComposerModule: Module {
       "contentGap": 0.0
     ])
 
-    // Composer View definition
+    // Composer View definition.
+    // MUST remain the first-declared View: it becomes the module's default view, so the
+    // JS ref's focus/blur/clear resolve through its prototype. Reordering silently breaks the ref at runtime.
     View(AiComposerView.self) {
       Prop("placeholder") { (view: AiComposerView, value: String) in
         view.placeholder = value

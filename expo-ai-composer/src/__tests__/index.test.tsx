@@ -122,6 +122,35 @@ describe("send button behavior", () => {
   });
 });
 
+describe("native event unwrapping", () => {
+  it("unwraps nativeEvent and calls the public callbacks with the inner value", () => {
+    const onSend = jest.fn();
+    const onHeightChange = jest.fn();
+    renderComposer({ onSend, onHeightChange });
+
+    // Fire the wrapped native events the way the native view would.
+    act(() => {
+      recordedProps.current?.onSend({ nativeEvent: { text: "hello" } });
+      recordedProps.current?.onHeightChange({ nativeEvent: { height: 64 } });
+    });
+
+    // Consumers receive the unwrapped value, not the raw event object.
+    expect(onSend).toHaveBeenCalledWith("hello");
+    expect(onHeightChange).toHaveBeenCalledWith(64);
+  });
+
+  it("is a no-op when the matching callback prop is undefined", () => {
+    // No onSend provided: the `?.` guard in the handler should swallow the call.
+    renderComposer();
+
+    expect(() =>
+      act(() => {
+        recordedProps.current?.onSend({ nativeEvent: { text: "hello" } });
+      })
+    ).not.toThrow();
+  });
+});
+
 describe("imperative ref", () => {
   it("exposes focus/blur/clear and delegates each to the native view ref", () => {
     const ref = createRef<AiComposerRef>();

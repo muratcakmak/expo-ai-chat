@@ -11,7 +11,9 @@ class ExpoAiComposerModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("ExpoAiComposer")
 
-        // AiComposerView
+        // AiComposerView.
+        // MUST remain the first-declared View: it becomes the module's default view, so the
+        // JS ref's focus/blur/clear resolve through its prototype. Reordering silently breaks the ref at runtime.
         View(AiComposerView::class) {
             Prop("placeholder") { view: AiComposerView, value: String ->
                 view.placeholderText = value
