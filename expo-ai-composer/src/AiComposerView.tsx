@@ -51,15 +51,24 @@ const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
 
     useImperativeHandle(
       ref,
-      () => ({
-        // These native view functions are async and can reject with ViewNotFound
-        // during an unmount race; swallow that benign dev-only rejection so it does
-        // not surface as an unhandled promise-rejection warning. Behavior is
-        // otherwise identical (fire-and-forget focus/blur/clear).
-        focus: () => nativeRef.current?.focus()?.catch?.(() => {}),
-        blur: () => nativeRef.current?.blur()?.catch?.(() => {}),
-        clear: () => nativeRef.current?.clear()?.catch?.(() => {}),
-      }),
+      () => {
+        // The native view function rejects with ViewNotFound during an unmount
+        // race — benign and dev-only, so swallow just that. Anything else is a
+        // real bug (broken ref binding, native throw) and gets logged instead of
+        // vanishing. Note: no `?.` before .focus() — if the binding is broken and
+        // the method is missing, we WANT it to throw loudly, not silently no-op.
+        const call = (fn: () => Promise<void> | undefined) =>
+          Promise.resolve(fn()).catch((e) => {
+            if (!String(e?.message ?? e).includes("ViewNotFound")) {
+              console.warn("[AiComposer] imperative call failed", e);
+            }
+          });
+        return {
+          focus: () => call(() => nativeRef.current?.focus()),
+          blur: () => call(() => nativeRef.current?.blur()),
+          clear: () => call(() => nativeRef.current?.clear()),
+        };
+      },
       []
     );
 

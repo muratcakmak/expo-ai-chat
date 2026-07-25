@@ -172,4 +172,62 @@ describe("imperative ref", () => {
     expect(nativeMethods.blur).toHaveBeenCalledTimes(1);
     expect(nativeMethods.clear).toHaveBeenCalledTimes(1);
   });
+
+  it("swallows the benign ViewNotFound unmount-race rejection without logging", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    nativeMethods.focus.mockRejectedValueOnce(new Error("ViewNotFound: gone"));
+
+    const ref = createRef<AiComposerRef>();
+    act(() => {
+      TestRenderer.create(createElement(AiComposer as any, { ref }));
+    });
+
+    // Must resolve, not reject — that's the whole point of the swallow.
+    await expect(ref.current?.focus()).resolves.toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("logs (does not silently discard) a real native rejection", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    nativeMethods.clear.mockRejectedValueOnce(
+      new Error("native clear() blew up")
+    );
+
+    const ref = createRef<AiComposerRef>();
+    act(() => {
+      TestRenderer.create(createElement(AiComposer as any, { ref }));
+    });
+
+    await ref.current?.clear();
+    expect(warn).toHaveBeenCalledWith(
+      "[AiComposer] imperative call failed",
+      expect.any(Error)
+    );
+    warn.mockRestore();
+  });
+});
+
+describe("wrapper prop forwarding", () => {
+  it("forwards the extraBottomInset default (0) and omits pinToTopEnabled when unset", () => {
+    act(() => {
+      TestRenderer.create(createElement(AiComposerWrapper as any, {}));
+    });
+
+    // Native defaults now live in the TS layer; the wrapper must pass the 0
+    // default explicitly, and must NOT pass an undefined pinToTopEnabled (which
+    // would clobber the native default).
+    expect(recordedProps.current?.extraBottomInset).toBe(0);
+    expect(recordedProps.current).not.toHaveProperty("pinToTopEnabled");
+  });
+
+  it("forwards pinToTopEnabled when explicitly provided", () => {
+    act(() => {
+      TestRenderer.create(
+        createElement(AiComposerWrapper as any, { pinToTopEnabled: true })
+      );
+    });
+
+    expect(recordedProps.current?.pinToTopEnabled).toBe(true);
+  });
 });
