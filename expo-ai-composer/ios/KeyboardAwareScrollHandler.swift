@@ -8,13 +8,20 @@ class KeyboardAwareScrollHandler: NSObject, UIGestureRecognizerDelegate, UIScrol
     weak var scrollView: UIScrollView?
     weak var delegate: KeyboardAwareScrollHandlerDelegate?
     var onKeyboardMetricsChanged: ((CGFloat, Double, UInt) -> Void)?
+    // Brackets a drag gesture. During one, an interactively-dismissed keyboard follows the
+    // finger with no per-frame notifications, so the composer needs its own display-rate
+    // driver. Not scrollViewDidScroll: that goes quiet once the list hits its scroll
+    // boundary while the keyboard is still moving.
+    var onDragStateChanged: ((Bool) -> Void)?
+    // Release of a drag, with the vertical gesture velocity. Negative means the finger was
+    // moving down. Fired before onDragStateChanged(false).
+    var onDragWillEnd: ((CGFloat) -> Void)?
     var baseBottomInset: CGFloat = 64
     private var keyboardHeight: CGFloat = 0
     private var wasAtBottom = false
     private var isAtBottom = true
     private var isKeyboardVisible = false
     private var isKeyboardHiding: Bool = false
-    private let dismissKeyboardVelocityThreshold: CGFloat = -1.2
 
     // Pin-to-top + runway state
     private enum PinState {
@@ -116,6 +123,20 @@ class KeyboardAwareScrollHandler: NSObject, UIGestureRecognizerDelegate, UIScrol
 
     private var safeAreaBottom: CGFloat {
         scrollView?.window?.safeAreaInsets.bottom ?? 34
+    }
+
+    /// Where the composer rests when the keyboard is down. Mirrors
+    /// AiComposerWrapper.restingBottomOffset — the two must agree or the composer and the
+    /// content it sits above travel on different curves.
+    private var restingBottomOffset: CGFloat {
+        max(safeAreaBottom, 16)
+    }
+
+    /// Distance from the bottom of the viewport to the top of the composer, for a given
+    /// keyboard height. Clamped, not branched: below the resting offset the composer stops
+    /// following the keyboard, and the inset has to stop with it.
+    private func composerClearance(forKeyboardHeight height: CGFloat) -> CGFloat {
+        max(height + 10, restingBottomOffset)
     }
 
     override init() {
@@ -318,21 +339,11 @@ class KeyboardAwareScrollHandler: NSObject, UIGestureRecognizerDelegate, UIScrol
         guard let scrollView = scrollView else { return }
         let savedOffset = preserveScrollPosition ? scrollView.contentOffset : nil
 
-        let baseInset: CGFloat
-        let indicatorInset: CGFloat
-        let minBottomPadding: CGFloat = 16
-        let composerKeyboardGap: CGFloat = 10
         let indicatorGapAboveInput: CGFloat = 1
         let composerHeight = max(0, baseBottomInset)
-
-        if keyboardHeight > 0 {
-            baseInset = baseBottomInset + keyboardHeight + composerKeyboardGap
-            indicatorInset = keyboardHeight + composerKeyboardGap + composerHeight + indicatorGapAboveInput
-        } else {
-            let bottomOffset = max(safeAreaBottom, minBottomPadding)
-            baseInset = baseBottomInset + bottomOffset
-            indicatorInset = bottomOffset + composerHeight + indicatorGapAboveInput
-        }
+        let clearance = composerClearance(forKeyboardHeight: keyboardHeight)
+        let baseInset = baseBottomInset + clearance
+        let indicatorInset = clearance + composerHeight + indicatorGapAboveInput
 
         if isPinActive {
             recomputeRunwayInset(baseInset: baseInset)
@@ -351,6 +362,33 @@ class KeyboardAwareScrollHandler: NSObject, UIGestureRecognizerDelegate, UIScrol
                 scrollView.setContentOffset(savedOffset, animated: false)
             }
         }
+    }
+
+    /// Per-frame inset tracking for an interactively-dragged keyboard. Shifts the inset and
+    /// the offset by the same delta, which holds `maxOffset - offset` constant so the
+    /// content keeps its distance from the composer instead of the composer sliding over
+    /// it. Moving both together is also what keeps this from fighting the in-flight pan the
+    /// way a bare offset write would.
+    func applyLiveKeyboardHeight(_ height: CGFloat) {
+        guard let scrollView else { return }
+        // Pin-to-top owns the offset in these states; same guard as shouldAdjustScrollForKeyboard.
+        switch pinState {
+        case .animating, .pinned: return
+        default: break
+        }
+
+        keyboardHeight = height
+        let newInset = baseBottomInset + composerClearance(forKeyboardHeight: height)
+        let delta = newInset - scrollView.contentInset.bottom
+        guard abs(delta) > 0.5 else { return }
+
+        scrollView.contentInset.bottom = newInset
+        scrollView.verticalScrollIndicatorInsets.bottom =
+            composerClearance(forKeyboardHeight: height) + max(0, baseBottomInset) + 1
+        scrollView.contentOffset.y = max(
+            -scrollView.contentInset.top,
+            scrollView.contentOffset.y + delta
+        )
     }
 
     private func scrollToBottom(animated: Bool) {
@@ -374,6 +412,9 @@ class KeyboardAwareScrollHandler: NSObject, UIGestureRecognizerDelegate, UIScrol
     func attach(to scrollView: UIScrollView) {
         self.scrollView = scrollView
         scrollView.automaticallyAdjustsScrollIndicatorInsets = false
+        // Interactive drag-to-dismiss: the keyboard follows the finger. iOS posts no
+        // per-frame keyboard notifications during this gesture, so the composer rides
+        // along via onInteractiveDrag + keyboardLayoutGuide in AiComposerWrapper.
         scrollView.keyboardDismissMode = .interactive
         scrollView.delegate = self
         updateContentInset()
@@ -416,10 +457,15 @@ class KeyboardAwareScrollHandler: NSObject, UIGestureRecognizerDelegate, UIScrol
         if case .pinned(let targetOffset, _) = pinState {
             pinState = .pinned(targetOffset: targetOffset, enforce: false)
         }
+        onDragStateChanged?(true)
     }
 
     func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
         if !decelerate { userIsInteracting = false }
+        // Stops on release, not on deceleration end: the keyboard's fate is settled here
+        // and the notification-driven animation takes over. Letting the display link run
+        // past this point would fight that animation frame by frame.
+        onDragStateChanged?(false)
     }
 
     func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
@@ -428,9 +474,9 @@ class KeyboardAwareScrollHandler: NSObject, UIGestureRecognizerDelegate, UIScrol
 
     func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
         guard isKeyboardVisible || keyboardHeight > 0.5 else { return }
-        if velocity.y <= dismissKeyboardVelocityThreshold {
-            scrollView.window?.endEditing(true)
-        }
+        // The wrapper owns this call: deciding whether a part-dragged keyboard commits or
+        // springs back needs the live keyboard position, which only it can read.
+        onDragWillEnd?(velocity.y)
     }
 
     private func checkAndUpdateScrollPosition() {
