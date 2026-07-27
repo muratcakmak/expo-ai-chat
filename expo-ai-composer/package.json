@@ -67,6 +67,7 @@
     "@types/jest": "~30.0.0",
     "@types/react": "~19.2.14",
     "@types/react-test-renderer": "~19.1.0",
+    "eslint": "^9.39.4",
     "expo": "^57.0.4",
     "expo-module-scripts": "^56.0.3",
     "expo-modules-core": "^57.0.3",
