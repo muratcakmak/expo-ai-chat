@@ -1,6 +1,6 @@
 {
   "name": "expo-ai-composer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A native keyboard-aware AI composer component for React Native with smooth keyboard animations and ChatGPT-style pin-to-top scroll",
   "main": "build/index.js",
   "types": "build/index.d.ts",
