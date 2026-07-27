@@ -115,28 +115,6 @@ class AiComposerView(context: Context, appContext: AppContext) : ExpoView(contex
             updateButtonAppearance()
         }
 
-    // Trigger counters for increment detection
-    private var lastFocusTrigger: Double = 0.0
-    private var lastClearTrigger: Double = 0.0
-
-    var focusTrigger: Double
-        get() = lastFocusTrigger
-        set(value) {
-            if (value > 0 && value != lastFocusTrigger) {
-                lastFocusTrigger = value
-                focus()
-            }
-        }
-
-    var clearTrigger: Double
-        get() = lastClearTrigger
-        set(value) {
-            if (value > 0 && value != lastClearTrigger) {
-                lastClearTrigger = value
-                clear()
-            }
-        }
-
     internal var onNativeSend: (() -> Unit)? = null
 
     // MARK: - UI Elements

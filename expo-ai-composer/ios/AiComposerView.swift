@@ -492,7 +492,7 @@ class AiComposerView: ExpoView {
     textView.becomeFirstResponder()
   }
 
-  // MARK: - Public methods (called via prop triggers)
+  // MARK: - Public methods (called via view functions)
   func focus() {
     textView.becomeFirstResponder()
   }

@@ -1,6 +1,13 @@
 import ExpoModulesCore
 import UIKit
 
+/// CADisplayLink retains its target; this keeps it from retaining the view.
+private final class DisplayLinkProxy: NSObject {
+    private weak var target: AiComposerWrapper?
+    init(target: AiComposerWrapper) { self.target = target }
+    @objc func tick() { target?.syncComposerToLiveKeyboard() }
+}
+
 class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
     private let keyboardHandler = KeyboardAwareScrollHandler()
     private var hasAttached = false
@@ -14,12 +21,24 @@ class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
     private weak var composerContainer: UIView?
     private weak var composerView: AiComposerView?
     private weak var registeredScrollView: UIScrollView?
+    // Zero-size view pinned to keyboardLayoutGuide.topAnchor. Discrete keyboard
+    // notifications don't fire per-frame during interactive drag-to-dismiss, but UIKit
+    // does keep the guide up to date — so this gives us a live keyboard top edge.
+    private let keyboardAnchor = UIView()
+    private var dragDisplayLink: CADisplayLink?
+    // True from the moment a drag starts until the keyboard notification's animation
+    // finishes. `currentKeyboardHeight` is stale for the frames between release and that
+    // notification, so layout passes must not derive the composer position from it.
+    private var isKeyboardTransitioning = false
     private var safeAreaBottom: CGFloat = 0
     private var lastComposerHeight: CGFloat = 0
     private var isFirstSend: Bool = true
 
     private let COMPOSER_KEYBOARD_GAP: CGFloat = 10
     private let MIN_BOTTOM_PADDING: CGFloat = 16
+    // Gesture velocity (pt/ms, negative = finger moving down) at or below which releasing
+    // a part-dragged keyboard dismisses it instead of springing it back.
+    private let DISMISS_VELOCITY: CGFloat = -0.5
 
     // KVO observations
     private var extraBottomInsetObservation: NSKeyValueObservation?
@@ -27,7 +46,9 @@ class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
     private var pinToTopEnabledObservation: NSKeyValueObservation?
 
     @objc dynamic var pinToTopEnabled: Bool = false
-    @objc dynamic var extraBottomInset: CGFloat = 48
+    // Source of truth for the default is the TS layer (AiComposerWrapper.tsx), which
+    // always passes this prop; keep the native default at 0 to match it.
+    @objc dynamic var extraBottomInset: CGFloat = 0
     @objc dynamic var scrollToTopTrigger: Double = 0
 
     required init(appContext: AppContext? = nil) {
@@ -39,6 +60,15 @@ class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
             self.animateComposerAndButton(duration: duration, curve: curve)
             self.composerView?.notifyKeyboardHeight(height)
         }
+        keyboardHandler.onDragStateChanged = { [weak self] isDragging in
+            guard let self else { return }
+            if isDragging { self.isKeyboardTransitioning = true }
+            self.setLiveKeyboardTracking(isDragging)
+        }
+        keyboardHandler.onDragWillEnd = { [weak self] velocityY in
+            self?.commitOrRestoreKeyboard(velocityY: velocityY)
+        }
+        setupKeyboardAnchor()
         setupScrollToBottomButton()
         setupPropertyObservers()
         NotificationCenter.default.addObserver(
@@ -100,6 +130,7 @@ class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
     }
 
     deinit {
+        dragDisplayLink?.invalidate()
         NotificationCenter.default.removeObserver(self)
         extraBottomInsetObservation?.invalidate()
         scrollToTopTriggerObservation?.invalidate()
@@ -155,23 +186,92 @@ class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
         keyboardHandler.requestPinForNextContentAppend()
     }
 
-    private func animateComposerAndButton(duration: Double, curve: UInt) {
-        let options = UIView.AnimationOptions(rawValue: curve << 16)
-        UIView.animate(withDuration: duration, delay: 0, options: options) {
-            self.updateComposerTransform()
-            self.updateScrollButtonTransform()
+    // MARK: - Live Keyboard Tracking
+
+    private func setupKeyboardAnchor() {
+        keyboardAnchor.isUserInteractionEnabled = false
+        keyboardAnchor.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(keyboardAnchor)
+        keyboardLayoutGuide.followsUndockedKeyboard = true
+        NSLayoutConstraint.activate([
+            keyboardAnchor.leadingAnchor.constraint(equalTo: leadingAnchor),
+            keyboardAnchor.widthAnchor.constraint(equalToConstant: 0),
+            keyboardAnchor.heightAnchor.constraint(equalToConstant: 0),
+            keyboardAnchor.bottomAnchor.constraint(equalTo: keyboardLayoutGuide.topAnchor),
+        ])
+    }
+
+    /// Points of this view currently covered by the keyboard, read from the layout guide
+    /// rather than the last notification — the only value that is correct mid-drag.
+    private var liveKeyboardOverlap: CGFloat {
+        layoutIfNeeded()
+        return max(0, bounds.maxY - keyboardAnchor.frame.maxY)
+    }
+
+    /// Release of a part-dragged keyboard commits on downward inertia and springs back
+    /// otherwise, rather than letting UIKit decide from drag distance alone.
+    /// DISMISS_VELOCITY is the tuning knob: less negative dismisses more eagerly.
+    private func commitOrRestoreKeyboard(velocityY: CGFloat) {
+        let overlap = liveKeyboardOverlap
+        // Untouched keyboard — an ordinary scroll with the keyboard up. Don't interfere.
+        guard overlap > 0, overlap < currentKeyboardHeight - 1 else { return }
+
+        if velocityY <= DISMISS_VELOCITY {
+            window?.endEditing(true)
+        } else {
+            composerView?.focus()
         }
     }
 
-    private func updateComposerTransform() {
-        guard let container = composerContainer else { return }
-        let translation: CGFloat
-        if currentKeyboardHeight > 0 {
-            translation = -(currentKeyboardHeight + COMPOSER_KEYBOARD_GAP)
+    private func setLiveKeyboardTracking(_ enabled: Bool) {
+        if enabled {
+            guard dragDisplayLink == nil else { return }
+            let link = CADisplayLink(
+                target: DisplayLinkProxy(target: self),
+                selector: #selector(DisplayLinkProxy.tick)
+            )
+            link.add(to: .main, forMode: .common)
+            dragDisplayLink = link
         } else {
-            let bottomOffset = max(safeAreaBottom, MIN_BOTTOM_PADDING)
-            translation = -bottomOffset
+            dragDisplayLink?.invalidate()
+            dragDisplayLink = nil
         }
+    }
+
+    // Deliberately does NOT notify JS — this runs at display rate.
+    fileprivate func syncComposerToLiveKeyboard() {
+        // No animation wrapper: the drag is already continuous, one update per frame.
+        let height = liveKeyboardOverlap
+        updateComposerTransform(keyboardHeight: height)
+        updateScrollButtonTransform(keyboardHeight: height)
+        keyboardHandler.applyLiveKeyboardHeight(height)
+    }
+
+    private func animateComposerAndButton(duration: Double, curve: UInt) {
+        let options = UIView.AnimationOptions(rawValue: curve << 16)
+        UIView.animate(
+            withDuration: duration, delay: 0, options: options,
+            animations: {
+                self.updateComposerTransform(keyboardHeight: self.currentKeyboardHeight)
+                self.updateScrollButtonTransform(keyboardHeight: self.currentKeyboardHeight)
+            },
+            completion: { _ in
+                self.isKeyboardTransitioning = false
+            }
+        )
+    }
+
+    /// Where the composer sits when the keyboard is fully down.
+    private var restingBottomOffset: CGFloat {
+        max(safeAreaBottom, MIN_BOTTOM_PADDING)
+    }
+
+    private func updateComposerTransform(keyboardHeight: CGFloat) {
+        guard let container = composerContainer else { return }
+        // Clamped, not branched: for the last few points of an interactive drag the
+        // keyboard top is above the resting offset, and following it there would dip the
+        // composer below its resting position and snap back on release.
+        let translation = -max(keyboardHeight + COMPOSER_KEYBOARD_GAP, restingBottomOffset)
         let currentTranslation = container.transform.ty
         if abs(currentTranslation - translation) > 0.5 {
             container.transform = CGAffineTransform(translationX: 0, y: translation)
@@ -191,28 +291,25 @@ class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
 
     private func calculateBaseButtonOffset() -> CGFloat {
         let composerHeight = lastComposerHeight > 0 ? lastComposerHeight : extraBottomInset
-        let bottomOffset = max(safeAreaBottom, MIN_BOTTOM_PADDING)
         let buttonGap: CGFloat = 8
-        return bottomOffset + composerHeight + buttonGap
+        return restingBottomOffset + composerHeight + buttonGap
     }
 
-    private func updateScrollButtonTransform() {
-        let effectiveKeyboard = max(currentKeyboardHeight - safeAreaBottom, 0)
-        if effectiveKeyboard > 0 {
-            let translation = -(effectiveKeyboard + COMPOSER_KEYBOARD_GAP)
-            scrollButtonController.setTransform(CGAffineTransform(translationX: 0, y: translation))
-        } else {
-            scrollButtonController.setTransform(.identity)
-        }
+    private func updateScrollButtonTransform(keyboardHeight: CGFloat) {
+        scrollButtonController.setTransform(buttonKeyboardTransform(keyboardHeight: keyboardHeight))
+    }
+
+    // The button's base offset already includes restingBottomOffset, so it only needs to
+    // travel the distance the composer moves *beyond* resting — same clamp, same curve,
+    // which is what keeps the 8pt gap constant instead of the two crossing mid-drag.
+    private func buttonKeyboardTransform(keyboardHeight: CGFloat) -> CGAffineTransform {
+        let travel = max(keyboardHeight + COMPOSER_KEYBOARD_GAP - restingBottomOffset, 0)
+        guard travel > 0 else { return .identity }
+        return CGAffineTransform(translationX: 0, y: -travel)
     }
 
     private func currentButtonKeyboardTransform() -> CGAffineTransform {
-        let effectiveKeyboard = max(currentKeyboardHeight - safeAreaBottom, 0)
-        if effectiveKeyboard > 0 {
-            let translation = -(effectiveKeyboard + COMPOSER_KEYBOARD_GAP)
-            return CGAffineTransform(translationX: 0, y: translation)
-        }
-        return .identity
+        buttonKeyboardTransform(keyboardHeight: currentKeyboardHeight)
     }
 
     private func updateScrollButtonBasePosition() {
@@ -257,12 +354,24 @@ class AiComposerWrapper: ExpoView, KeyboardAwareScrollHandlerDelegate {
             )
         }
 
-        if composerContainer != nil {
-            updateComposerTransform()
+        // Three sources, in priority order. Mid-drag the guide is the only accurate one.
+        // Between release and the keyboard notification nothing is accurate, so leave the
+        // transform alone and let the notification's animation carry it from where the
+        // drag ended — deriving it from the stale currentKeyboardHeight is what used to
+        // snap the composer back up before it fell.
+        let isDragging = keyboardHandler.scrollView?.isDragging ?? false
+        let keyboardHeight: CGFloat? = isDragging
+            ? max(0, bounds.maxY - keyboardAnchor.frame.maxY)
+            : (isKeyboardTransitioning ? nil : currentKeyboardHeight)
+
+        if let keyboardHeight {
+            if composerContainer != nil {
+                updateComposerTransform(keyboardHeight: keyboardHeight)
+            }
+            updateScrollButtonTransform(keyboardHeight: keyboardHeight)
         }
 
         updateScrollButtonBasePosition()
-        updateScrollButtonTransform()
         scrollButtonController.bringToFront()
     }
 

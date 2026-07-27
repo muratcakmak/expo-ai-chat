@@ -11,7 +11,9 @@ class ExpoAiComposerModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("ExpoAiComposer")
 
-        // AiComposerView
+        // AiComposerView.
+        // MUST remain the first-declared View: it becomes the module's default view, so the
+        // JS ref's focus/blur/clear resolve through its prototype. Reordering silently breaks the ref at runtime.
         View(AiComposerView::class) {
             Prop("placeholder") { view: AiComposerView, value: String ->
                 view.placeholderText = value
@@ -45,26 +47,21 @@ class ExpoAiComposerModule : Module() {
                 view.autoFocus = value
             }
 
-            Prop("blurTrigger") { view: AiComposerView, value: Double ->
-                if (value > 0) {
-                    view.blur()
-                }
-            }
-
-            Prop("focusTrigger") { view: AiComposerView, value: Double ->
-                if (value > 0) {
-                    view.focus()
-                }
-            }
-
-            Prop("clearTrigger") { view: AiComposerView, value: Double ->
-                if (value > 0) {
-                    view.clear()
-                }
-            }
-
             Prop("isStreaming") { view: AiComposerView, value: Boolean ->
                 view.isStreaming = value
+            }
+
+            // Imperative view functions (dispatched on the main queue by the view DSL).
+            AsyncFunction("focus") { view: AiComposerView ->
+                view.focus()
+            }
+
+            AsyncFunction("blur") { view: AiComposerView ->
+                view.blur()
+            }
+
+            AsyncFunction("clear") { view: AiComposerView ->
+                view.clear()
             }
 
             Events(

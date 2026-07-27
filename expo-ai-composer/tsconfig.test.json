@@ -1,0 +1,11 @@
+{
+  // Typechecks the test suite (excluded from the build tsconfig).
+  // Run via `pnpm typecheck:test` — noEmit, so rootDir/outDir don't apply.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["jest"]
+  },
+  "include": ["./src"],
+  "exclude": ["**/__mocks__/*"]
+}

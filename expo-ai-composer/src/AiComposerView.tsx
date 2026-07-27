@@ -1,10 +1,5 @@
 import { requireNativeView } from "expo";
-import {
-  forwardRef,
-  useCallback,
-  useImperativeHandle,
-  useState,
-} from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { View, StyleSheet } from "react-native";
 
 import type {
@@ -15,8 +10,23 @@ import type {
   HeightEventPayload,
 } from "./ExpoAiComposer.types";
 
-const NativeView: React.ComponentType<AiComposerViewProps> =
-  requireNativeView("ExpoAiComposer");
+/**
+ * Imperative methods the native view exposes on its ref. `requireNativeView`
+ * assigns these to the component prototype so they are callable via the ref.
+ * They are async view functions dispatched natively, so each returns a promise
+ * that can reject with ViewNotFound if the view unmounts mid-call.
+ */
+interface NativeAiComposerViewRef {
+  focus: () => Promise<void>;
+  blur: () => Promise<void>;
+  clear: () => Promise<void>;
+}
+
+const NativeView: React.ComponentType<
+  AiComposerViewProps & {
+    ref?: React.RefObject<NativeAiComposerViewRef | null>;
+  }
+> = requireNativeView("ExpoAiComposer");
 
 const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
   (props, ref) => {
@@ -37,16 +47,30 @@ const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
       ...rest
     } = props;
 
-    // Prop-based triggers for ref methods
-    const [focusTrigger, setFocusTrigger] = useState(0);
-    const [blurTrigger, setBlurTrigger] = useState(0);
-    const [clearTrigger, setClearTrigger] = useState(0);
+    const nativeRef = useRef<NativeAiComposerViewRef | null>(null);
 
-    useImperativeHandle(ref, () => ({
-      focus: () => setFocusTrigger((v) => v + 1),
-      blur: () => setBlurTrigger((v) => v + 1),
-      clear: () => setClearTrigger((v) => v + 1),
-    }), []);
+    useImperativeHandle(
+      ref,
+      () => {
+        // The native view function rejects with ViewNotFound during an unmount
+        // race — benign and dev-only, so swallow just that. Anything else is a
+        // real bug (broken ref binding, native throw) and gets logged instead of
+        // vanishing. Note: no `?.` before .focus() — if the binding is broken and
+        // the method is missing, we WANT it to throw loudly, not silently no-op.
+        const call = (fn: () => Promise<void> | undefined) =>
+          Promise.resolve(fn()).catch((e) => {
+            if (!String(e?.message ?? e).includes("ViewNotFound")) {
+              console.warn("[AiComposer] imperative call failed", e);
+            }
+          });
+        return {
+          focus: () => call(() => nativeRef.current?.focus()),
+          blur: () => call(() => nativeRef.current?.blur()),
+          clear: () => call(() => nativeRef.current?.clear()),
+        };
+      },
+      []
+    );
 
     // Event handlers that unwrap nativeEvent
     const handleChangeText = useCallback(
@@ -90,13 +114,17 @@ const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
     }, [onComposerBlur]);
 
     const hasAccessories =
-      headerAccessory || leadingAccessory || trailingAccessory || footerAccessory;
+      headerAccessory ||
+      leadingAccessory ||
+      trailingAccessory ||
+      footerAccessory;
 
     // Hide built-in send button when a trailing accessory replaces it
     const effectiveShowSendButton = trailingAccessory ? false : showSendButton;
 
     const nativeView = (
       <NativeView
+        ref={nativeRef}
         style={hasAccessories ? styles.nativeInput : [styles.standalone, style]}
         onChangeText={handleChangeText}
         onSend={handleSend}
@@ -106,9 +134,6 @@ const AiComposerView = forwardRef<AiComposerRef, AiComposerProps>(
         onComposerFocus={handleComposerFocus}
         onComposerBlur={handleComposerBlur}
         showSendButton={effectiveShowSendButton}
-        focusTrigger={focusTrigger}
-        blurTrigger={blurTrigger}
-        clearTrigger={clearTrigger}
         {...rest}
       />
     );

@@ -3,6 +3,5 @@ __mocks__/
 *.test.*
 .github/
 example/
-.eslintrc.js
 tsconfig.json
 CONTRIBUTING.md
