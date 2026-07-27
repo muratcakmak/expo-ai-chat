@@ -65,6 +65,9 @@ importers:
       expo-modules-core:
         specifier: ^57.0.3
         version: 57.0.3(react-native@0.86.0(@babel/core@7.29.0)(@react-native/jest-preset@0.85.3(@babel/core@7.29.0)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)
+      jest:
+        specifier: ^29.7.0
+        version: 29.7.0(@types/node@25.5.0)
       react:
         specifier: 19.2.3
         version: 19.2.3
