@@ -40,3 +40,68 @@ jobs:
 
       - name: Typecheck app
         run: pnpm --filter app exec tsc --noEmit
+
+  # Publishes expo-ai-composer whenever a commit lands on main carrying a version
+  # that has no tag yet. Bumping the version in package.json IS the release
+  # trigger — there is nothing else to remember.
+  release:
+    name: Tag and publish
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the tag
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need existing tags to know what is already released
+
+      - name: Check whether this version is already released
+        id: check
+        run: |
+          VERSION=$(node -p "require('./expo-ai-composer/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "v$VERSION is already tagged — nothing to release."
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "v$VERSION has no tag — releasing."
+          fi
+
+      - name: Set up pnpm
+        if: steps.check.outputs.release == 'true'
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        if: steps.check.outputs.release == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org # writes the .npmrc npm publish authenticates with
+
+      - name: Install dependencies
+        if: steps.check.outputs.release == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # Publish before tagging. A tag pointing at a version that never reached npm
+      # is harder to reason about later than a published version still missing one.
+      # package.json's prepublishOnly runs the module build.
+      - name: Publish to npm
+        if: steps.check.outputs.release == 'true'
+        run: npm publish
+        working-directory: expo-ai-composer
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Tag the release
+        if: steps.check.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "expo-ai-composer v$VERSION"
+          git push origin "v$VERSION"
